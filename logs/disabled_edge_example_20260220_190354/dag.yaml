@@ -1,0 +1,61 @@
+steps:
+  - name: extract
+    deps: []
+    when: null
+    condition: null
+    is_branch: false
+    code: |-
+          @dag.step()
+          def extract():
+              print("extract")
+              return "raw-data"
+    status: done
+    duration_ms: 0.016
+    input_lines: 0
+    output_lines: 1
+    disabled_deps:
+    result: |-
+      raw-data
+    output: |-
+      extract
+  - name: transform
+    deps:
+      - extract
+    when: null
+    condition: null
+    is_branch: false
+    code: |-
+          @dag.step(depends_on=[extract])
+          def transform(results):
+              print("transform")
+              return results["extract"].upper()
+    status: skipped
+    duration_ms: 0.0
+    input_lines: 0
+    output_lines: 0
+    disabled_deps:
+      - extract
+    result: |-
+
+    output: |-
+
+  - name: load
+    deps:
+      - transform
+    when: null
+    condition: null
+    is_branch: false
+    code: |-
+          @dag.step(depends_on=[transform])
+          def load(results):
+              print(f"load: {results['transform']}")
+              return "ok"
+    status: skipped
+    duration_ms: 0.0
+    input_lines: 0
+    output_lines: 0
+    disabled_deps:
+    result: |-
+
+    output: |-
+
