@@ -15,8 +15,20 @@ def run(
     steps: Mapping[str, Step],
     max_workers: int | None = None,
     raise_on_fail: bool = True,
+    disabled_edges: set[tuple[str, str]] | None = None,
+    disabled_steps: set[str] | None = None,
 ) -> tuple[MutableMapping[str, object], MutableMapping[str, str], MutableMapping[str, str]]:
     validate_steps(steps)
+    disabled = set(disabled_edges or set())
+    disabled_nodes = set(disabled_steps or set())
+    for step_name in disabled_nodes:
+        if step_name not in steps:
+            raise ValueError(f"Step desconhecido desabilitado: {step_name}")
+    for source, target in disabled:
+        if source not in steps or target not in steps:
+            raise ValueError(f"Hop desconhecido desabilitado: {source} -> {target}")
+        if source not in steps[target].deps:
+            raise ValueError(f"Hop nao existe no DAG: {source} -> {target}")
     order = topological_order(steps)
     pending = set(order)
     running: dict[str, object] = {}
@@ -24,38 +36,41 @@ def run(
     status: MutableMapping[str, str] = {name: "pending" for name in order}
     timings: MutableMapping[str, float] = {}
 
-    def can_run(name: str) -> bool:
+    def _set_status(
+        name: str,
+        new_status: str,
+        allowed_from: set[str],
+    ) -> None:
+        current = status[name]
+        if current not in allowed_from:
+            raise RuntimeError(
+                f"Transicao de status invalida para {name}: {current} -> {new_status}"
+            )
+        status[name] = new_status
+
+    def is_ready(name: str) -> bool:
         step = steps[name]
-        for dep in step.deps:
-            if status[dep] == "failed":
-                return False
-            if status[dep] == "skipped":
-                return False
-            if status[dep] != "done":
-                return False
-        if step.when is not None:
-            cond_value = results[step.when]
-            if not isinstance(cond_value, bool):
-                raise ValueError(
-                    f"Branch {step.when} deve retornar bool, recebeu {cond_value}"
-                )
-            return cond_value is step.condition
-        return True
+        return all(status[dep] == "done" for dep in step.deps)
 
     def should_skip(name: str) -> bool:
+        if name in disabled_nodes:
+            return True
         step = steps[name]
         for dep in step.deps:
+            if (dep, name) in disabled:
+                return True
             if status[dep] in {"failed", "skipped"}:
                 return True
-        if step.when is not None and status[step.when] == "done":
-            cond_value = results[step.when]
-            if not isinstance(cond_value, bool):
-                raise ValueError(
-                    f"Branch {step.when} deve retornar bool, recebeu {cond_value}"
-                )
-            if cond_value is not step.condition:
-                return True
         return False
+
+    def branch_matches(name: str) -> bool:
+        step = steps[name]
+        if step.when is None:
+            return True
+        cond_value = results[step.when]
+        if not isinstance(cond_value, bool):
+            raise ValueError(f"Branch {step.when} deve retornar bool, recebeu {cond_value}")
+        return cond_value is step.condition
 
     stdout = sys.stdout
     stderr = sys.stderr
@@ -132,7 +147,7 @@ def run(
                 progressed = False
                 for name in list(pending):
                     if should_skip(name):
-                        status[name] = "skipped"
+                        _set_status(name, "skipped", {"pending"})
                         outputs[name] = ""
                         timings[name] = 0.0
                         input_lines_map[name] = 0
@@ -140,13 +155,23 @@ def run(
                         pending.remove(name)
                         progressed = True
                         continue
-                    if can_run(name):
-                        step = steps[name]
-                        future = executor.submit(_run_step, step)
-                        running[name] = future
-                        status[name] = "running"
+                    if not is_ready(name):
+                        continue
+                    if not branch_matches(name):
+                        _set_status(name, "skipped", {"pending"})
+                        outputs[name] = ""
+                        timings[name] = 0.0
+                        input_lines_map[name] = 0
+                        output_lines_map[name] = 0
                         pending.remove(name)
                         progressed = True
+                        continue
+                    step = steps[name]
+                    future = executor.submit(_run_step, step)
+                    running[name] = future
+                    _set_status(name, "running", {"pending"})
+                    pending.remove(name)
+                    progressed = True
 
                 if running:
                     done_futures, _ = wait(running.values(), return_when=FIRST_COMPLETED)
@@ -169,10 +194,10 @@ def run(
                         output_lines_map[finished] = output_lines
                         if ok:
                             results[finished] = payload
-                            status[finished] = "done"
+                            _set_status(finished, "done", {"running"})
                         else:
                             results[finished] = payload
-                            status[finished] = "failed"
+                            _set_status(finished, "failed", {"running"})
                         del running[finished]
                     progressed = True
 

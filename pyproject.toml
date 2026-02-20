@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "ipython>=9.10.0",
     "pytest>=8.0.0",
+    "pytest-cov>=5.0.0",
 ]
 
 [build-system]
@@ -18,3 +19,11 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["src/ninout/core/tests"]
+addopts = "--cov=src/ninout --cov-report=term-missing --cov-report=xml:src/ninout/core/tests/reports/coverage.xml --cov-report=html:src/ninout/core/tests/reports/htmlcov"
+cache_dir = "src/ninout/core/tests/.pytest_cache"
+
+[tool.coverage.run]
+omit = ["src/ninout/core/tests/*"]

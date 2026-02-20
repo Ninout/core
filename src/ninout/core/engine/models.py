@@ -19,3 +19,5 @@ class Step:
     duration_ms: float | None = None
     input_lines: int | None = None
     output_lines: int | None = None
+    disabled_deps: list[str] = field(default_factory=list)
+    disabled_self: bool = False

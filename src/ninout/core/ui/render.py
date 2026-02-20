@@ -35,7 +35,10 @@ def to_html_from_steps(steps: Mapping[str, Step], path: str = "dag.html") -> Non
             y2 = y2 + node_h // 2
             stroke = "#444"
             dash = ""
-            if step.when == dep and step.condition is True:
+            if dep in step.disabled_deps:
+                stroke = "#9aa0a6"
+                dash = "stroke-dasharray='4 4'"
+            elif step.when == dep and step.condition is True:
                 stroke = "#1f8a4c"
             elif step.when == dep and step.condition is False:
                 stroke = "#c0392b"
@@ -49,12 +52,18 @@ def to_html_from_steps(steps: Mapping[str, Step], path: str = "dag.html") -> Non
     for name, (x, y) in positions.items():
         step = steps[name]
         fill = "#f5f2e9"
+        stroke = "#222"
+        stroke_width = "2"
         if step.is_branch:
             fill = "#f7efe0"
+        if step.disabled_self:
+            fill = "#e2e2e2"
+            stroke = "#9aa0a6"
+            stroke_width = "2.5"
         nodes_svg.append(
             f"<rect class='node' data-step='{_esc(name)}' x='{x}' y='{y}' "
             f"width='{node_w}' height='{node_h}' "
-            f"rx='8' ry='8' fill='{fill}' stroke='#222' stroke-width='2' />"
+            f"rx='8' ry='8' fill='{fill}' stroke='{stroke}' stroke-width='{stroke_width}' />"
         )
         nodes_svg.append(
             f"<text class='node-label' data-step='{_esc(name)}' "
@@ -101,6 +110,7 @@ def to_html_from_steps(steps: Mapping[str, Step], path: str = "dag.html") -> Non
               <div class='meta'>
                 <span class='{badge_class}'>{_esc(status)}</span>
                 <span class='pill'>{'branch' if step.is_branch else 'step'}</span>
+                <span class='pill'>{'disabled' if step.disabled_self else 'enabled'}</span>
                 <span class='pill'>{_esc(duration)}</span>
                 <span class='pill'>{_esc(input_lines)}</span>
                 <span class='pill'>{_esc(output_lines)}</span>

@@ -3,10 +3,15 @@
 `ninout` is a Python package to create and execute DAGs with decorators.  
 Each decorated function becomes a step. The engine runs steps in parallel when possible, supports `if/else`, and generates per-run logs (YAML + HTML).
 
+Current local quality snapshot (February 20, 2026):
+- `36` tests passing
+- `99%` coverage for production code under `src/ninout` (tests excluded from coverage scope)
+
 ## Project layout
 
 - `src/ninout/`: installable Python package.
 - `src/ninout/core/`: engine, validation, rendering, serialization.
+- `docs/`: project documentation split by topic.
 - `transformations/`: user DAGs runnable with `uv run`.
 - `logs/`: one folder per execution, `logs/<dag_name>_<timestamp>/`.
 - `src/ninout/core/tests/`: unit and integration tests.
@@ -68,8 +73,16 @@ uv run transformations/example_dag.py
 ## Tests
 
 ```
-uv run pytest -q
+uv run python -m pytest -q
 ```
+
+Coverage:
+```
+uv run python -m pytest
+```
+Generated files:
+- `src/ninout/core/tests/reports/coverage.xml`
+- `src/ninout/core/tests/reports/htmlcov/index.html`
 
 ## Notes
 

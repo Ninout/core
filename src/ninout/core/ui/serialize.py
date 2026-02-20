@@ -55,6 +55,8 @@ def to_yaml(
             result = meta.get("result", None)
             input_lines = meta.get("input_lines", None)
             output_lines = meta.get("output_lines", None)
+            disabled_deps = meta.get("disabled_deps", None)
+            disabled_self = meta.get("disabled_self", None)
         else:
             status = ""
             output = ""
@@ -62,6 +64,8 @@ def to_yaml(
             result = None
             input_lines = None
             output_lines = None
+            disabled_deps = None
+            disabled_self = None
         lines.append(f"    status: {status or 'null'}")
         lines.append(
             f"    duration_ms: {duration if isinstance(duration, (int, float)) else 'null'}"
@@ -71,6 +75,15 @@ def to_yaml(
         )
         lines.append(
             f"    output_lines: {output_lines if isinstance(output_lines, int) else 'null'}"
+        )
+        if isinstance(disabled_deps, list):
+            lines.append("    disabled_deps:")
+            for dep in disabled_deps:
+                lines.append(f"      - {dep}")
+        else:
+            lines.append("    disabled_deps: []")
+        lines.append(
+            f"    disabled_self: {str(bool(disabled_self)).lower() if isinstance(disabled_self, bool) else 'false'}"
         )
         lines.append("    result: |-")
         lines.append(_indent(_safe_to_string(result), 6))
@@ -178,6 +191,19 @@ def load_yaml(path: str) -> dict[str, Step]:
                     current["output_lines"] = None
             idx += 1
             continue
+        if line.startswith("    disabled_deps:"):
+            current["disabled_deps"] = []
+            idx += 1
+            while idx < len(lines) and lines[idx].startswith("      - "):
+                dep = lines[idx][len("      - ") :].strip()
+                current["disabled_deps"].append(dep)
+                idx += 1
+            continue
+        if line.startswith("    disabled_self: "):
+            value = line[len("    disabled_self: ") :].strip()
+            current["disabled_self"] = value == "true"
+            idx += 1
+            continue
         if line.startswith("    output: |-"):
             idx += 1
             output_lines: list[str] = []
@@ -216,6 +242,8 @@ def _add_step_from_dict(steps: dict[str, Step], data: dict[str, object]) -> None
     duration_ms = data.get("duration_ms")
     input_lines = data.get("input_lines")
     output_lines = data.get("output_lines")
+    disabled_deps = data.get("disabled_deps")
+    disabled_self = data.get("disabled_self")
 
     def _noop() -> None:
         return None
@@ -234,6 +262,10 @@ def _add_step_from_dict(steps: dict[str, Step], data: dict[str, object]) -> None
         duration_ms=duration_ms if isinstance(duration_ms, (int, float)) else None,
         input_lines=input_lines if isinstance(input_lines, int) else None,
         output_lines=output_lines if isinstance(output_lines, int) else None,
+        disabled_deps=[str(dep) for dep in disabled_deps]
+        if isinstance(disabled_deps, list)
+        else [],
+        disabled_self=bool(disabled_self) if isinstance(disabled_self, bool) else False,
     )
 
 
