@@ -4,6 +4,7 @@ from typing import Mapping
 
 from ninout.core.ui.layout import layout_positions
 from ninout.core.engine.models import Step
+from ninout.core.ui.persist_duckdb import load_steps_from_duckdb
 from ninout.core.ui.serialize import load_yaml
 from ninout.core.engine.validate import topological_order, validate_steps
 
@@ -434,4 +435,9 @@ def to_html_from_steps(steps: Mapping[str, Step], path: str = "dag.html") -> Non
 
 def to_html_from_yaml(yaml_path: str, html_path: str = "dag.html") -> None:
     steps = load_yaml(yaml_path)
+    to_html_from_steps(steps, path=html_path)
+
+
+def to_html_from_duckdb(db_path: str, html_path: str = "dag.html") -> None:
+    steps = load_steps_from_duckdb(db_path)
     to_html_from_steps(steps, path=html_path)

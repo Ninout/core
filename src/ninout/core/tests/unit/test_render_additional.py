@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from ninout.core.engine.models import Step
-from ninout.core.ui.render import to_html_from_steps
+import ninout.core.ui.render as render_module
+from ninout.core.ui.render import to_html_from_duckdb, to_html_from_steps
 
 
 def test_render_includes_branch_edge_styles_and_status_badges(tmp_path) -> None:
@@ -106,3 +107,14 @@ def test_render_marks_disabled_node_style_and_badge(tmp_path) -> None:
     content = html_path.read_text(encoding="utf-8")
     assert "fill='#e2e2e2'" in content
     assert "disabled" in content
+
+
+def test_render_from_duckdb_uses_loaded_steps(monkeypatch, tmp_path) -> None:
+    def fake_load_steps(_db_path: str):
+        return {"a": Step(name="a", func=lambda: None, deps=[], status="done", code="pass")}
+
+    monkeypatch.setattr(render_module, "load_steps_from_duckdb", fake_load_steps)
+    html_path = tmp_path / "dag.html"
+    to_html_from_duckdb("fake.duckdb", html_path=str(html_path))
+    content = html_path.read_text(encoding="utf-8")
+    assert "DAG Visualization" in content

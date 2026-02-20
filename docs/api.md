@@ -46,6 +46,8 @@ Behavior:
 - marks step as `skipped` if dependency fails/is skipped or branch condition does not match;
 - raises `RuntimeError` on failures when `raise_on_fail=True`.
 - supports disabling specific hops (edges) for the run via `disabled_edges=[("a", "b")]`.
+- supports real-time DuckDB logging during execution via:
+  - `dag.run(dag_name="my_dag", logs_dir="logs", persist_duckdb=True, duckdb_file_name="run.duckdb")`
 
 State transitions:
 - `pending -> running -> done/failed`
@@ -55,11 +57,13 @@ State transitions:
 
 Serializes structure plus last run metadata to YAML.
 
-### `Dag.to_html(dag_name="dag", logs_dir="logs")`
+### `Dag.to_html(dag_name="dag", logs_dir="logs", persist_duckdb=False, duckdb_file_name="run.duckdb")`
 
 Generates:
 - `<logs_dir>/<dag_name>_<timestamp>/dag.yaml`
 - `<logs_dir>/<dag_name>_<timestamp>/dag.html`
+- optionally `<logs_dir>/<dag_name>_<timestamp>/run.duckdb` when `persist_duckdb=True`
+  (or already created during `run(..., persist_duckdb=True)`)
 
 Returns `(yaml_path, html_path)`.
 

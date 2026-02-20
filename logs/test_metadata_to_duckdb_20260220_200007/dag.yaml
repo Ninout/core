@@ -1,0 +1,135 @@
+steps:
+  - name: extract_users
+    deps: []
+    when: null
+    condition: null
+    is_branch: false
+    code: |-
+          @dag.step()
+          def extract_users():
+              return [
+                  {"id": 1, "name": "ana"},
+                  {"id": 2, "name": "bruno"},
+                  {"id": 3, "name": "carla"},
+              ]
+    status: done
+    duration_ms: 0.01
+    input_lines: 0
+    output_lines: 3
+    disabled_deps:
+    disabled_self: false
+    result: |-
+      [
+        {
+          "id": 1,
+          "name": "ana"
+        },
+        {
+          "id": 2,
+          "name": "bruno"
+        },
+        {
+          "id": 3,
+          "name": "carla"
+        }
+      ]
+    output: |-
+
+  - name: should_uppercase
+    deps:
+      - extract_users
+    when: null
+    condition: null
+    is_branch: true
+    code: |-
+          @dag.branch(depends_on=[extract_users])
+          def should_uppercase() -> bool:
+              return False
+    status: done
+    duration_ms: 0.011
+    input_lines: 3
+    output_lines: 1
+    disabled_deps:
+    disabled_self: false
+    result: |-
+      False
+    output: |-
+
+  - name: uppercase_names
+    deps:
+      - extract_users
+      - should_uppercase
+    when: should_uppercase
+    condition: true
+    is_branch: false
+    code: |-
+          @dag.step(depends_on=[extract_users], when=should_uppercase, condition=True)
+          def uppercase_names(results):
+              return [{"id": row["id"], "name": row["name"].upper()} for row in results["extract_users"]]
+    status: skipped
+    duration_ms: 0.0
+    input_lines: 0
+    output_lines: 0
+    disabled_deps:
+    disabled_self: false
+    result: |-
+
+    output: |-
+
+  - name: keep_original
+    deps:
+      - extract_users
+      - should_uppercase
+    when: should_uppercase
+    condition: false
+    is_branch: false
+    code: |-
+          @dag.step(depends_on=[extract_users], when=should_uppercase, condition=False)
+          def keep_original(results):
+              return results["extract_users"]
+    status: done
+    duration_ms: 0.004
+    input_lines: 4
+    output_lines: 3
+    disabled_deps:
+    disabled_self: false
+    result: |-
+      [
+        {
+          "id": 1,
+          "name": "ana"
+        },
+        {
+          "id": 2,
+          "name": "bruno"
+        },
+        {
+          "id": 3,
+          "name": "carla"
+        }
+      ]
+    output: |-
+
+  - name: load
+    deps:
+      - keep_original
+    when: null
+    condition: null
+    is_branch: false
+    code: |-
+          @dag.step(depends_on=[keep_original])
+          def load(results):
+              rows = results["keep_original"]
+              return {"loaded_rows": len(rows)}
+    status: done
+    duration_ms: 0.003
+    input_lines: 3
+    output_lines: 1
+    disabled_deps:
+    disabled_self: false
+    result: |-
+      {
+        "loaded_rows": 3
+      }
+    output: |-
+

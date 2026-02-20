@@ -24,7 +24,9 @@ logs/<dag_name>_<YYYYMMDD_HHMMSS>/
 
 Files:
 - `dag.yaml`: structured snapshot of the DAG plus execution data.
-- `dag.html`: interactive visualization generated from YAML.
+- `dag.html`: interactive visualization generated from persisted run data (DuckDB when available).
+- `run.duckdb` (optional): per-step outputs persisted in real time when `dag.run(..., persist_duckdb=True)`.
+  - when DuckDB is available, HTML is rendered from `run.duckdb` data.
 
 ## What is stored in YAML
 
@@ -58,3 +60,9 @@ In HTML:
 - `stdout`/`stderr` are captured per step and stored in YAML under `output`.
 - Disabled hops (`source -> target`) also mark target/downstream as `skipped`.
 - Disabled steps (`disable_step`) are marked as `skipped` and propagate skip downstream.
+- DuckDB persistence requires the `duckdb` package (`uv add duckdb`).
+- During run-time persistence, each completed step updates:
+  - one row in `step_metadata`,
+  - one table per step (`step_<name>`) with serialized payload rows.
+- DuckDB mirrors graph and run metadata that exists in YAML:
+  - deps, when, condition, branch flags, code, status, timings, line metrics, output, result, disabled hops/steps.

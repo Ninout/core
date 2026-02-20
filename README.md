@@ -55,8 +55,7 @@ uv run transformations/<dag>.py
 Each run generates:
 - `logs/<dag_name>_<timestamp>/dag.yaml`
 - `logs/<dag_name>_<timestamp>/dag.html`
-
-The HTML is always generated from the YAML.
+- optional `logs/<dag_name>_<timestamp>/run.duckdb` when `dag.run(..., persist_duckdb=True)`
 
 ## Development
 

@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "duckdb>=1.4.4",
     "ipython>=9.10.0",
     "pytest>=8.0.0",
     "pytest-cov>=5.0.0",

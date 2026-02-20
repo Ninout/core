@@ -5,7 +5,7 @@ import sys
 import threading
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
-from typing import Mapping, MutableMapping
+from typing import Callable, Mapping, MutableMapping
 
 from ninout.core.engine.models import Step
 from ninout.core.engine.validate import topological_order, validate_steps
@@ -17,6 +17,9 @@ def run(
     raise_on_fail: bool = True,
     disabled_edges: set[tuple[str, str]] | None = None,
     disabled_steps: set[str] | None = None,
+    on_step_update: (
+        Callable[[str, str, object | None, str, float, int, int], None] | None
+    ) = None,
 ) -> tuple[MutableMapping[str, object], MutableMapping[str, str], MutableMapping[str, str]]:
     validate_steps(steps)
     disabled = set(disabled_edges or set())
@@ -152,6 +155,8 @@ def run(
                         timings[name] = 0.0
                         input_lines_map[name] = 0
                         output_lines_map[name] = 0
+                        if on_step_update is not None:
+                            on_step_update(name, "skipped", None, "", 0.0, 0, 0)
                         pending.remove(name)
                         progressed = True
                         continue
@@ -163,6 +168,8 @@ def run(
                         timings[name] = 0.0
                         input_lines_map[name] = 0
                         output_lines_map[name] = 0
+                        if on_step_update is not None:
+                            on_step_update(name, "skipped", None, "", 0.0, 0, 0)
                         pending.remove(name)
                         progressed = True
                         continue
@@ -195,9 +202,29 @@ def run(
                         if ok:
                             results[finished] = payload
                             _set_status(finished, "done", {"running"})
+                            if on_step_update is not None:
+                                on_step_update(
+                                    finished,
+                                    "done",
+                                    payload,
+                                    output,
+                                    duration,
+                                    input_lines,
+                                    output_lines,
+                                )
                         else:
                             results[finished] = payload
                             _set_status(finished, "failed", {"running"})
+                            if on_step_update is not None:
+                                on_step_update(
+                                    finished,
+                                    "failed",
+                                    payload,
+                                    output,
+                                    duration,
+                                    input_lines,
+                                    output_lines,
+                                )
                         del running[finished]
                     progressed = True
 

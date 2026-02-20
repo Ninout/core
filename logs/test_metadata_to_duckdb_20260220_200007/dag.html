@@ -203,59 +203,97 @@
         <h1>DAG Visualization</h1>
       </div>
       <section class='graph-card'>
-        <svg viewBox='0 0 620 128' xmlns='http://www.w3.org/2000/svg'>
+        <svg viewBox='0 0 820 248' xmlns='http://www.w3.org/2000/svg'>
           <defs>
             <marker id='arrow' markerWidth='10' markerHeight='10' refX='8' refY='3' orient='auto'>
               <path d='M0,0 L0,6 L9,3 z' fill='#444' />
             </marker>
           </defs>
-          <line x1='180' y1='64' x2='240' y2='64' stroke='#9aa0a6' stroke-width='2' stroke-dasharray='4 4' marker-end='url(#arrow)' /><line x1='380' y1='64' x2='440' y2='64' stroke='#444' stroke-width='2'  marker-end='url(#arrow)' />
-          <rect class='node' data-step='extract' x='40' y='40' width='140' height='48' rx='8' ry='8' fill='#f5f2e9' stroke='#222' stroke-width='2' /><text class='node-label' data-step='extract' x='110.0' y='69.0' text-anchor='middle' font-family='Georgia, serif' font-size='14' fill='#111'>extract</text><rect class='node' data-step='transform' x='240' y='40' width='140' height='48' rx='8' ry='8' fill='#f5f2e9' stroke='#222' stroke-width='2' /><text class='node-label' data-step='transform' x='310.0' y='69.0' text-anchor='middle' font-family='Georgia, serif' font-size='14' fill='#111'>transform</text><rect class='node' data-step='load' x='440' y='40' width='140' height='48' rx='8' ry='8' fill='#f5f2e9' stroke='#222' stroke-width='2' /><text class='node-label' data-step='load' x='510.0' y='69.0' text-anchor='middle' font-family='Georgia, serif' font-size='14' fill='#111'>load</text>
+          <line x1='180' y1='64' x2='240' y2='64' stroke='#444' stroke-width='2'  marker-end='url(#arrow)' /><line x1='180' y1='64' x2='440' y2='64' stroke='#444' stroke-width='2'  marker-end='url(#arrow)' /><line x1='380' y1='64' x2='440' y2='64' stroke='#1f8a4c' stroke-width='2'  marker-end='url(#arrow)' /><line x1='180' y1='64' x2='440' y2='184' stroke='#444' stroke-width='2'  marker-end='url(#arrow)' /><line x1='380' y1='64' x2='440' y2='184' stroke='#c0392b' stroke-width='2' stroke-dasharray='6 4' marker-end='url(#arrow)' /><line x1='580' y1='184' x2='640' y2='64' stroke='#444' stroke-width='2'  marker-end='url(#arrow)' />
+          <rect class='node' data-step='extract_users' x='40' y='40' width='140' height='48' rx='8' ry='8' fill='#f5f2e9' stroke='#222' stroke-width='2' /><text class='node-label' data-step='extract_users' x='110.0' y='69.0' text-anchor='middle' font-family='Georgia, serif' font-size='14' fill='#111'>extract_users</text><rect class='node' data-step='should_uppercase' x='240' y='40' width='140' height='48' rx='8' ry='8' fill='#f7efe0' stroke='#222' stroke-width='2' /><text class='node-label' data-step='should_uppercase' x='310.0' y='69.0' text-anchor='middle' font-family='Georgia, serif' font-size='14' fill='#111'>should_uppercase</text><rect class='node' data-step='uppercase_names' x='440' y='40' width='140' height='48' rx='8' ry='8' fill='#f5f2e9' stroke='#222' stroke-width='2' /><text class='node-label' data-step='uppercase_names' x='510.0' y='69.0' text-anchor='middle' font-family='Georgia, serif' font-size='14' fill='#111'>uppercase_names</text><rect class='node' data-step='keep_original' x='440' y='160' width='140' height='48' rx='8' ry='8' fill='#f5f2e9' stroke='#222' stroke-width='2' /><text class='node-label' data-step='keep_original' x='510.0' y='189.0' text-anchor='middle' font-family='Georgia, serif' font-size='14' fill='#111'>keep_original</text><rect class='node' data-step='load' x='640' y='40' width='140' height='48' rx='8' ry='8' fill='#f5f2e9' stroke='#222' stroke-width='2' /><text class='node-label' data-step='load' x='710.0' y='69.0' text-anchor='middle' font-family='Georgia, serif' font-size='14' fill='#111'>load</text>
         </svg>
       </section>
       <section class='panel' id='detail-panel'>
         <div class='panel-placeholder'>Click a step to view details.</div>
         
-        <article class='card' id='step-extract' hidden>
+        <article class='card' id='step-extract_users' hidden>
           <header>
             <div>
-              <h2>extract</h2>
+              <h2>extract_users</h2>
               <div class='meta'>
                 <span class='status status-ok'>done</span>
                 <span class='pill'>step</span>
-                <span class='pill'>0.016 ms</span>
+                <span class='pill'>enabled</span>
+                <span class='pill'>0.010 ms</span>
                 <span class='pill'>in 0 lines</span>
-                <span class='pill'>out 1 lines</span>
+                <span class='pill'>out 3 lines</span>
               </div>
             </div>
           </header>
           <div class='metrics'>
             <div><span>Input lines</span><strong>0</strong></div>
-            <div><span>Output lines</span><strong>1</strong></div>
+            <div><span>Output lines</span><strong>3</strong></div>
           </div>
           <div class='card-body'>
             <div>
               <h3>Code</h3>
               <pre><code class='language-python'>    @dag.step()
-    def extract():
-        print(&quot;extract&quot;)
-        return &quot;raw-data&quot;</code></pre>
+    def extract_users():
+        return [
+            {&quot;id&quot;: 1, &quot;name&quot;: &quot;ana&quot;},
+            {&quot;id&quot;: 2, &quot;name&quot;: &quot;bruno&quot;},
+            {&quot;id&quot;: 3, &quot;name&quot;: &quot;carla&quot;},
+        ]</code></pre>
             </div>
             <div>
               <h3>Preview</h3>
               <div class='preview-table' data-empty='true'></div>
-              <pre class='result-raw'>raw-data</pre>
+              <pre class='result-raw'>[{&quot;id&quot;: 1, &quot;name&quot;: &quot;ana&quot;}, {&quot;id&quot;: 2, &quot;name&quot;: &quot;bruno&quot;}, {&quot;id&quot;: 3, &quot;name&quot;: &quot;carla&quot;}]</pre>
             </div>
           </div>
         </article>
 
-        <article class='card' id='step-transform' hidden>
+        <article class='card' id='step-should_uppercase' hidden>
           <header>
             <div>
-              <h2>transform</h2>
+              <h2>should_uppercase</h2>
+              <div class='meta'>
+                <span class='status status-ok'>done</span>
+                <span class='pill'>branch</span>
+                <span class='pill'>enabled</span>
+                <span class='pill'>0.011 ms</span>
+                <span class='pill'>in 3 lines</span>
+                <span class='pill'>out 1 lines</span>
+              </div>
+            </div>
+          </header>
+          <div class='metrics'>
+            <div><span>Input lines</span><strong>3</strong></div>
+            <div><span>Output lines</span><strong>1</strong></div>
+          </div>
+          <div class='card-body'>
+            <div>
+              <h3>Code</h3>
+              <pre><code class='language-python'>    @dag.branch(depends_on=[extract_users])
+    def should_uppercase() -&gt; bool:
+        return False</code></pre>
+            </div>
+            <div>
+              <h3>Preview</h3>
+              <div class='preview-table' data-empty='true'></div>
+              <pre class='result-raw'>false</pre>
+            </div>
+          </div>
+        </article>
+
+        <article class='card' id='step-uppercase_names' hidden>
+          <header>
+            <div>
+              <h2>uppercase_names</h2>
               <div class='meta'>
                 <span class='status status-skip'>skipped</span>
                 <span class='pill'>step</span>
+                <span class='pill'>enabled</span>
                 <span class='pill'>0.000 ms</span>
                 <span class='pill'>in 0 lines</span>
                 <span class='pill'>out 0 lines</span>
@@ -269,15 +307,47 @@
           <div class='card-body'>
             <div>
               <h3>Code</h3>
-              <pre><code class='language-python'>    @dag.step(depends_on=[extract])
-    def transform(results):
-        print(&quot;transform&quot;)
-        return results[&quot;extract&quot;].upper()</code></pre>
+              <pre><code class='language-python'>    @dag.step(depends_on=[extract_users], when=should_uppercase, condition=True)
+    def uppercase_names(results):
+        return [{&quot;id&quot;: row[&quot;id&quot;], &quot;name&quot;: row[&quot;name&quot;].upper()} for row in results[&quot;extract_users&quot;]]</code></pre>
             </div>
             <div>
               <h3>Preview</h3>
               <div class='preview-table' data-empty='true'></div>
               <pre class='result-raw'>No result</pre>
+            </div>
+          </div>
+        </article>
+
+        <article class='card' id='step-keep_original' hidden>
+          <header>
+            <div>
+              <h2>keep_original</h2>
+              <div class='meta'>
+                <span class='status status-ok'>done</span>
+                <span class='pill'>step</span>
+                <span class='pill'>enabled</span>
+                <span class='pill'>0.004 ms</span>
+                <span class='pill'>in 4 lines</span>
+                <span class='pill'>out 3 lines</span>
+              </div>
+            </div>
+          </header>
+          <div class='metrics'>
+            <div><span>Input lines</span><strong>4</strong></div>
+            <div><span>Output lines</span><strong>3</strong></div>
+          </div>
+          <div class='card-body'>
+            <div>
+              <h3>Code</h3>
+              <pre><code class='language-python'>    @dag.step(depends_on=[extract_users], when=should_uppercase, condition=False)
+    def keep_original(results):
+        return results[&quot;extract_users&quot;]</code></pre>
+            </div>
+            <div>
+              <h3>Preview</h3>
+              <div class='preview-table' data-empty='true'></div>
+              <pre class='result-raw'>[{&quot;id&quot;: 1, &quot;name&quot;: &quot;ana&quot;}, {&quot;id&quot;: 2, &quot;name&quot;: &quot;bruno&quot;}, {&quot;id&quot;: 3, &quot;name&quot;: &quot;carla&quot;}]</pre>
             </div>
           </div>
         </article>
@@ -287,30 +357,31 @@
             <div>
               <h2>load</h2>
               <div class='meta'>
-                <span class='status status-skip'>skipped</span>
+                <span class='status status-ok'>done</span>
                 <span class='pill'>step</span>
-                <span class='pill'>0.000 ms</span>
-                <span class='pill'>in 0 lines</span>
-                <span class='pill'>out 0 lines</span>
+                <span class='pill'>enabled</span>
+                <span class='pill'>0.003 ms</span>
+                <span class='pill'>in 3 lines</span>
+                <span class='pill'>out 1 lines</span>
               </div>
             </div>
           </header>
           <div class='metrics'>
-            <div><span>Input lines</span><strong>0</strong></div>
-            <div><span>Output lines</span><strong>0</strong></div>
+            <div><span>Input lines</span><strong>3</strong></div>
+            <div><span>Output lines</span><strong>1</strong></div>
           </div>
           <div class='card-body'>
             <div>
               <h3>Code</h3>
-              <pre><code class='language-python'>    @dag.step(depends_on=[transform])
+              <pre><code class='language-python'>    @dag.step(depends_on=[keep_original])
     def load(results):
-        print(f&quot;load: {results['transform']}&quot;)
-        return &quot;ok&quot;</code></pre>
+        rows = results[&quot;keep_original&quot;]
+        return {&quot;loaded_rows&quot;: len(rows)}</code></pre>
             </div>
             <div>
               <h3>Preview</h3>
               <div class='preview-table' data-empty='true'></div>
-              <pre class='result-raw'>No result</pre>
+              <pre class='result-raw'>{&quot;loaded_rows&quot;: 3}</pre>
             </div>
           </div>
         </article>
