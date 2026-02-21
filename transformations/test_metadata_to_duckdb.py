@@ -51,10 +51,6 @@ if __name__ == "__main__":
         duckdb_file_name="metadata.duckdb",
     )
     print(f"Status: {status}")
-
-    yaml_path, html_path = dag.to_html(
-        dag_name=dag_name,
-    )
-    print(f"YAML: {yaml_path}")
-    print(f"HTML: {html_path}")
-    print(f"DuckDB: {os.path.join(os.path.dirname(yaml_path), 'metadata.duckdb')}")
+    print(f"Run dir: {dag._last_run_dir}")
+    if dag._last_run_dir:
+        print(f"DuckDB: {os.path.join(dag._last_run_dir, 'metadata.duckdb')}")

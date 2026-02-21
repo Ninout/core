@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import io
+from queue import Queue
 import sys
 import threading
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
-from typing import Callable, Mapping, MutableMapping
+from typing import Callable, Iterable, Mapping, MutableMapping
 
 from ninout.core.engine.models import Step
-from ninout.core.engine.validate import topological_order, validate_steps
+from ninout.core.engine.planner import compile_execution_plan
 
 
 def run(
@@ -21,18 +22,15 @@ def run(
         Callable[[str, str, object | None, str, float, int, int], None] | None
     ) = None,
 ) -> tuple[MutableMapping[str, object], MutableMapping[str, str], MutableMapping[str, str]]:
-    validate_steps(steps)
-    disabled = set(disabled_edges or set())
-    disabled_nodes = set(disabled_steps or set())
-    for step_name in disabled_nodes:
-        if step_name not in steps:
-            raise ValueError(f"Step desconhecido desabilitado: {step_name}")
-    for source, target in disabled:
-        if source not in steps or target not in steps:
-            raise ValueError(f"Hop desconhecido desabilitado: {source} -> {target}")
-        if source not in steps[target].deps:
-            raise ValueError(f"Hop nao existe no DAG: {source} -> {target}")
-    order = topological_order(steps)
+    progress_emit_interval_s = 0.2
+    plan = compile_execution_plan(
+        steps,
+        disabled_edges=set(disabled_edges or set()),
+        disabled_steps=set(disabled_steps or set()),
+    )
+    disabled = set(plan.disabled_edges)
+    disabled_nodes = set(plan.disabled_steps)
+    order = plan.order
     pending = set(order)
     running: dict[str, object] = {}
     results: MutableMapping[str, object] = {}
@@ -111,6 +109,30 @@ def run(
             return all(isinstance(item, dict) for item in value)
         return False
 
+    def _normalize_payload(value: object, step_name: str) -> object:
+        if _is_step_payload(value):
+            return value
+        if isinstance(value, tuple):
+            mapped = [{"value": item} for item in value]
+            return mapped
+        if isinstance(value, Iterable) and not isinstance(value, (str, bytes, dict, list)):
+            collected = list(value)
+            if all(isinstance(item, dict) for item in collected):
+                return collected
+        raise TypeError(
+            f"Step {step_name} deve retornar dict ou list[dict], recebeu {type(value).__name__}"
+        )
+
+    duckdb_connection = None
+    if any(step.mode == "sql" for step in steps.values()):
+        try:
+            import duckdb  # type: ignore[import-not-found]
+        except ImportError as exc:
+            raise RuntimeError(
+                "duckdb nao esta instalado. Instale com `uv add duckdb` para executar steps mode='sql'."
+            ) from exc
+        duckdb_connection = duckdb.connect(":memory:")
+
     def _run_step(step: Step) -> tuple[bool, object, str, float, int, int]:
         buffer = io.StringIO()
         thread_local.buffer = buffer
@@ -120,17 +142,114 @@ def run(
             if dep in results:
                 input_lines += _count_lines(results[dep])
         try:
-            try:
-                result = step.func(results)
-            except TypeError:
-                result = step.func()
+            if step.mode == "row":
+                input_rows: list[dict[str, object]] = []
+                for dep in step.deps:
+                    dep_value = results.get(dep)
+                    if isinstance(dep_value, dict):
+                        input_rows.append(dep_value)
+                    elif isinstance(dep_value, list):
+                        input_rows.extend(dep_value)
+
+                eof = object()
+                in_q: Queue[object] = Queue(maxsize=1024)
+                out_q: Queue[object] = Queue(maxsize=1024)
+                worker_error: dict[str, Exception] = {}
+
+                def _producer() -> None:
+                    for row in input_rows:
+                        in_q.put(row)
+                    in_q.put(eof)
+
+                def _worker() -> None:
+                    while True:
+                        item = in_q.get()
+                        if item is eof:
+                            out_q.put(eof)
+                            return
+                        row = item
+                        try:
+                            try:
+                                row_result = step.func(row)
+                            except TypeError:
+                                row_result = step.func([row])
+                            if row_result is None:
+                                continue
+                            if isinstance(row_result, dict):
+                                out_q.put(row_result)
+                            elif isinstance(row_result, list):
+                                for r in row_result:
+                                    out_q.put(r)
+                            else:
+                                raise TypeError(
+                                    f"Step {step.name} (mode=row) deve retornar dict, list[dict] ou None por linha."
+                                )
+                        except Exception as exc:  # noqa: BLE001
+                            worker_error["error"] = exc
+                            out_q.put(eof)
+                            return
+
+                producer_thread = threading.Thread(target=_producer)
+                worker_thread = threading.Thread(target=_worker)
+                producer_thread.start()
+                worker_thread.start()
+
+                collected_rows: list[dict[str, object]] = []
+                last_emit = time.perf_counter()
+                while True:
+                    out_item = out_q.get()
+                    if out_item is eof:
+                        break
+                    collected_rows.append(out_item)
+                    now = time.perf_counter()
+                    if (
+                        on_step_update is not None
+                        and now - last_emit >= progress_emit_interval_s
+                    ):
+                        elapsed = now - start
+                        on_step_update(
+                            step.name,
+                            "running",
+                            None,
+                            buffer.getvalue(),
+                            elapsed,
+                            input_lines,
+                            len(collected_rows),
+                        )
+                        last_emit = now
+
+                producer_thread.join()
+                worker_thread.join()
+                if "error" in worker_error:
+                    raise worker_error["error"]
+                result = collected_rows
+            elif step.mode == "sql":
+                try:
+                    query = step.func(results)
+                except TypeError:
+                    query = step.func()
+                if not isinstance(query, str):
+                    raise TypeError(
+                        f"Step {step.name} com mode='sql' deve retornar query SQL (str)."
+                    )
+                if duckdb_connection is None:
+                    raise RuntimeError("Conexao DuckDB indisponivel para mode='sql'.")
+                sql_result = duckdb_connection.execute(query).fetchall()
+                columns = [desc[0] for desc in duckdb_connection.description]
+                result = [
+                    {str(col): row[idx] for idx, col in enumerate(columns)}
+                    for row in sql_result
+                ]
+            else:
+                try:
+                    result = step.func(results)
+                except TypeError:
+                    result = step.func()
             if step.is_branch:
                 if not isinstance(result, bool):
                     raise ValueError(f"Branch {step.name} deve retornar bool, recebeu {result}")
-            elif not _is_step_payload(result):
-                raise TypeError(
-                    f"Step {step.name} deve retornar dict ou list[dict], recebeu {type(result).__name__}"
-                )
+            else:
+                result = _normalize_payload(result, step.name)
             output_lines = _count_lines(result)
             return (
                 True,
@@ -245,6 +364,8 @@ def run(
                 if not progressed and not running and pending:
                     raise RuntimeError("Deadlock ao executar o DAG")
     finally:
+        if duckdb_connection is not None:
+            duckdb_connection.close()
         sys.stdout = stdout
         sys.stderr = stderr
 

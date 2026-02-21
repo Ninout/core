@@ -113,3 +113,27 @@ Persist plan + run metadata and render:
 Treat `PipelinePlan` as the single source of truth.
 Code API and visual editor are two frontends for the same model.
 This keeps behavior consistent and makes the platform scalable.
+
+## Implementation status (current)
+
+Implemented in code:
+- step modes:
+  - `task` (default)
+  - `row` (row-style processing contract)
+  - `sql` (query execution in DuckDB)
+- planner module:
+  - `compile_execution_plan(...)`
+  - `ExecutionPlan` dataclass used by executor
+- hybrid executor path:
+  - mode-aware execution in `executor.run(...)`
+- row-mode queue processing:
+  - row steps process data through internal queues (`Queue`) for incremental flow
+- run-time DuckDB logging:
+  - per-step updates persisted during processing
+  - dynamic dashboard/API reads from DuckDB
+
+Still planned (next increments):
+- row streaming with real queues per hop (`Queue` + EOF),
+- explicit backpressure controls and queue-level metrics,
+- richer SQL step dependency registration from upstream datasets,
+- full `PipelinePlan` JSON import/export with visual-editor round-trip.

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from ninout import Dag
@@ -67,7 +65,7 @@ def test_step_ignores_condition_when_when_is_missing() -> None:
     assert dag._steps["invalid"].condition is None
 
 
-def test_run_populates_last_run_and_to_yaml(tmp_path: Path) -> None:
+def test_run_populates_last_run_metadata() -> None:
     dag = Dag()
 
     @dag.step()
@@ -84,14 +82,13 @@ def test_run_populates_last_run_and_to_yaml(tmp_path: Path) -> None:
     assert status["b"] == "done"
     assert dag._last_run is not None
     assert dag._last_run["b"]["output_lines"] == 1
+    assert "throughput_in_lps" in dag._last_run["b"]
+    assert "throughput_out_lps" in dag._last_run["b"]
 
-    yaml_path = tmp_path / "manual.yaml"
-    dag.to_yaml(path=str(yaml_path))
-    assert yaml_path.exists()
-    assert "steps:" in yaml_path.read_text(encoding="utf-8")
+    assert dag._last_run_dir is not None
 
 
-def test_to_html_creates_run_files(tmp_path: Path) -> None:
+def test_static_export_apis_are_disabled() -> None:
     dag = Dag()
 
     @dag.step()
@@ -99,11 +96,10 @@ def test_to_html_creates_run_files(tmp_path: Path) -> None:
         return {"id": 1}
 
     dag.run()
-    yaml_path, html_path = dag.to_html(dag_name="unit", logs_dir=str(tmp_path))
-    assert Path(yaml_path).exists()
-    assert Path(html_path).exists()
-    assert "unit_" in yaml_path
-    assert html_path.endswith("dag.html")
+    with pytest.raises(RuntimeError):
+        dag.to_html()
+    with pytest.raises(RuntimeError):
+        dag.to_yaml()
 
 
 def test_disable_and_enable_edge_affects_execution() -> None:
@@ -193,3 +189,13 @@ def test_disable_step_validation_error() -> None:
 
     with pytest.raises(ValueError):
         dag.disable_step("missing")
+
+
+def test_step_mode_is_registered() -> None:
+    dag = Dag()
+
+    @dag.step(mode="row")
+    def row_step(rows):
+        return rows
+
+    assert dag._steps["row_step"].mode == "row"

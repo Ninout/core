@@ -2,33 +2,35 @@
 
 ## What ninout is
 
-`ninout` is a Python framework to model and execute DAG (Directed Acyclic Graph) pipelines using decorators.
+`ninout` is a Python framework to model and execute DAG pipelines.
 
-Each decorated function becomes a graph step, with:
+Each decorated function becomes a step, with:
 - explicit dependencies,
-- conditional branch support (`if/else`),
-- parallel execution when dependencies allow it,
-- execution observability through YAML logs and HTML visualization,
-- per-step status and metrics (`duration_ms`, `input_lines`, `output_lines`).
+- conditional branch support (`when` + `condition`),
+- execution modes (`task`, `row`, `sql`),
+- parallel scheduling when dependencies allow,
+- runtime observability persisted in DuckDB.
 
 ## Practical goal
 
-Enable declarative and lightweight data transformations while keeping:
-- simplicity in DAG creation,
-- graph consistency validation,
-- traceability for each step result.
+Provide a lightweight pipeline orchestrator that keeps:
+- simple authoring in code,
+- graph validation before execution,
+- per-step traceability and metrics during execution,
+- dynamic run inspection via API and dashboard.
 
 ## Usage flow
 
-1. Create a `Dag()` instance.
-2. Declare steps with `@dag.step(...)` and branches with `@dag.branch(...)`.
-3. Execute with `dag.run()`.
-4. Generate artifacts with `dag.to_html(dag_name=...)`.
+1. Create `Dag()`.
+2. Declare steps with `@dag.step(...)` and `@dag.branch(...)`.
+3. Execute with `dag.run(...)`.
+4. Inspect logs in DuckDB using the FastAPI dashboard.
 
 ## Core concepts
 
 - `step`: unit of work.
-- `deps`: list of steps that must complete first.
-- `branch`: step that returns `bool` to drive conditional execution.
-- `when` + `condition`: mechanism to model conditional paths.
-- `results`: dictionary with completed step outputs, injected when the function accepts a parameter.
+- `deps`: upstream steps required before run.
+- `branch`: step that must return `bool`.
+- `when` + `condition`: conditional path control.
+- `results`: dictionary with completed outputs (for task mode when function takes one argument).
+- `run.duckdb`: single source of truth for execution metadata and payload rows.

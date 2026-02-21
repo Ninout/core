@@ -102,11 +102,19 @@ class DuckDBRunLogger:
                 duration_ms DOUBLE,
                 input_lines INTEGER,
                 output_lines INTEGER,
+                throughput_in_lps DOUBLE,
+                throughput_out_lps DOUBLE,
                 output_text VARCHAR,
                 result_kind VARCHAR,
                 updated_at_utc TIMESTAMP
             )
             """
+        )
+        self._con.execute(
+            "ALTER TABLE step_runtime ADD COLUMN IF NOT EXISTS throughput_in_lps DOUBLE"
+        )
+        self._con.execute(
+            "ALTER TABLE step_runtime ADD COLUMN IF NOT EXISTS throughput_out_lps DOUBLE"
         )
         self._con.execute(
             "INSERT INTO run_metadata VALUES (?, ?, ?, ?)",
@@ -147,12 +155,17 @@ class DuckDBRunLogger:
             )
             self._con.execute(
                 """
-                INSERT INTO step_runtime VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO step_runtime (
+                    run_id, step_name, status, duration_ms, input_lines, output_lines,
+                    throughput_in_lps, throughput_out_lps, output_text, result_kind, updated_at_utc
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     self.run_id,
                     step_name,
                     "pending",
+                    None,
+                    None,
                     None,
                     None,
                     None,
@@ -165,14 +178,15 @@ class DuckDBRunLogger:
     def log_step(self, step_name: str, meta: Mapping[str, object]) -> None:
         table_name = self.table_map[step_name]
         result = meta.get("result")
-        rows = _rows_for_result(result)
-
-        self._con.execute(f"DELETE FROM {table_name}")
-        if rows:
-            self._con.executemany(
-                f"INSERT INTO {table_name} (row_id, payload_json) VALUES (?, ?)",
-                rows,
-            )
+        status_value = str(meta.get("status", ""))
+        if status_value in {"done", "failed"} or result is not None:
+            rows = _rows_for_result(result)
+            self._con.execute(f"DELETE FROM {table_name}")
+            if rows:
+                self._con.executemany(
+                    f"INSERT INTO {table_name} (row_id, payload_json) VALUES (?, ?)",
+                    rows,
+                )
 
         updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         self._con.execute(
@@ -181,12 +195,15 @@ class DuckDBRunLogger:
         )
         self._con.execute(
             """
-            INSERT INTO step_runtime VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO step_runtime (
+                run_id, step_name, status, duration_ms, input_lines, output_lines,
+                throughput_in_lps, throughput_out_lps, output_text, result_kind, updated_at_utc
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 self.run_id,
                 step_name,
-                str(meta.get("status", "")),
+                status_value,
                 meta.get("duration_ms")
                 if isinstance(meta.get("duration_ms"), (int, float))
                 else None,
@@ -195,6 +212,12 @@ class DuckDBRunLogger:
                 else None,
                 meta.get("output_lines")
                 if isinstance(meta.get("output_lines"), int)
+                else None,
+                meta.get("throughput_in_lps")
+                if isinstance(meta.get("throughput_in_lps"), (int, float))
+                else None,
+                meta.get("throughput_out_lps")
+                if isinstance(meta.get("throughput_out_lps"), (int, float))
                 else None,
                 str(meta.get("output", "")),
                 _result_kind(result),
@@ -238,6 +261,8 @@ def load_steps_from_duckdb(db_path: str) -> dict[str, Step]:
                 r.duration_ms,
                 r.input_lines,
                 r.output_lines,
+                r.throughput_in_lps,
+                r.throughput_out_lps,
                 r.output_text,
                 r.result_kind
             FROM step_definition d
@@ -264,6 +289,8 @@ def load_steps_from_duckdb(db_path: str) -> dict[str, Step]:
                 duration_ms,
                 input_lines,
                 output_lines,
+                throughput_in_lps,
+                throughput_out_lps,
                 output_text,
                 result_kind,
             ) = row
@@ -298,6 +325,12 @@ def load_steps_from_duckdb(db_path: str) -> dict[str, Step]:
                 else None,
                 input_lines=int(input_lines) if isinstance(input_lines, int) else None,
                 output_lines=int(output_lines) if isinstance(output_lines, int) else None,
+                throughput_in_lps=float(throughput_in_lps)
+                if isinstance(throughput_in_lps, (int, float))
+                else None,
+                throughput_out_lps=float(throughput_out_lps)
+                if isinstance(throughput_out_lps, (int, float))
+                else None,
                 disabled_deps=[
                     str(dep) for dep in json.loads(disabled_deps_json or "[]")
                 ],

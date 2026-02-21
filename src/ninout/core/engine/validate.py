@@ -7,6 +7,8 @@ from ninout.core.engine.models import Step
 
 def validate_steps(steps: Mapping[str, Step]) -> None:
     for step in steps.values():
+        if step.mode not in {"task", "row", "sql"}:
+            raise ValueError(f"Step {step.name} tem mode invalido: {step.mode}")
         for dep in step.deps:
             if dep not in steps:
                 raise ValueError(f"Dependencia desconhecida: {step.name} -> {dep}")

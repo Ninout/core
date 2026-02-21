@@ -40,8 +40,6 @@ def build_dag() -> Dag:
 
 if __name__ == "__main__":
     dag = build_dag()
-    _results, status = dag.run(raise_on_fail=False)
+    _results, status = dag.run(raise_on_fail=False, dag_name="disabled_edge_example")
     print(f"Status: {status}")
-    yaml_path, html_path = dag.to_html(dag_name="disabled_edge_example")
-    print(f"DAG generated in {html_path}")
-    print(f"YAML generated in {yaml_path}")
+    print(f"Run dir: {dag._last_run_dir}")

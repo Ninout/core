@@ -1,16 +1,15 @@
 from __future__ import annotations
 
 import builtins
+import sqlite3
+import time
 
 import pytest
 
 import ninout.core.engine.dag as dag_module
 from ninout import Dag
-from ninout.core.ui.persist_duckdb import (
-    _rows_for_result,
-    _table_name_for_step,
-    persist_run_to_duckdb,
-)
+from ninout.core.ui.persist_duckdb import _rows_for_result, _table_name_for_step, persist_run_to_duckdb
+from ninout.core.ui.persist_sqlite import SQLiteRunLogger
 
 
 def test_table_name_for_step_sanitizes_values() -> None:
@@ -41,37 +40,6 @@ def test_persist_run_to_duckdb_raises_when_duckdb_is_missing(monkeypatch, tmp_pa
             steps={},
             run_data={},
         )
-
-
-def test_dag_to_html_calls_duckdb_persistence_when_enabled(monkeypatch, tmp_path) -> None:
-    captured: dict[str, object] = {}
-
-    def fake_persist(db_path: str, dag_name: str, steps, run_data):
-        captured["db_path"] = db_path
-        captured["dag_name"] = dag_name
-        captured["steps"] = steps
-        captured["run_data"] = run_data
-        return {}
-
-    monkeypatch.setattr(dag_module, "persist_run_to_duckdb", fake_persist)
-
-    dag = Dag()
-
-    @dag.step()
-    def only():
-        return {"id": 1}
-
-    dag.run()
-    _yaml_path, _html_path = dag.to_html(
-        dag_name="duck",
-        logs_dir=str(tmp_path),
-        persist_duckdb=True,
-    )
-
-    assert captured["dag_name"] == "duck"
-    assert str(captured["db_path"]).endswith("run.duckdb")
-    assert "only" in captured["steps"]
-    assert "only" in captured["run_data"]
 
 
 def test_dag_run_persists_step_updates_to_duckdb_logger(monkeypatch, tmp_path) -> None:
@@ -121,3 +89,124 @@ def test_dag_run_persists_step_updates_to_duckdb_logger(monkeypatch, tmp_path) -
     assert ("b", "done") in events
     assert closed["value"] is True
     assert dag._last_run_dir is not None
+
+
+def test_dag_run_requires_duckdb_persistence() -> None:
+    dag = Dag()
+
+    @dag.step()
+    def a():
+        return {"id": 1}
+
+    with pytest.raises(RuntimeError):
+        dag.run(persist_duckdb=False)
+
+
+def test_sqlite_logger_persists_runtime_and_rows(tmp_path) -> None:
+    db_path = tmp_path / "runs.sqlite"
+    logger = SQLiteRunLogger(
+        db_path=str(db_path),
+        run_name="run_x",
+        dag_name="dag_x",
+        steps={"a": dag_module.Step(name="a", func=lambda: {"id": 1}, deps=[])},
+    )
+    logger.log_step(
+        "a",
+        {
+            "status": "done",
+            "duration_ms": 12.0,
+            "input_lines": 0,
+            "output_lines": 1,
+            "throughput_in_lps": 0.0,
+            "throughput_out_lps": 83.3,
+            "output": "ok",
+            "result": {"id": 1},
+        },
+    )
+    logger.close()
+
+    con = sqlite3.connect(db_path)
+    try:
+        runtime = con.execute(
+            "SELECT status, output_lines FROM step_runtime WHERE run_name = ? AND step_name = ?",
+            ["run_x", "a"],
+        ).fetchone()
+        assert runtime == ("done", 1)
+        row = con.execute(
+            "SELECT row_id, payload_json FROM step_rows WHERE run_name = ? AND step_name = ?",
+            ["run_x", "a"],
+        ).fetchone()
+        assert row is not None
+        assert row[0] == 1
+        assert '"id": 1' in row[1]
+    finally:
+        con.close()
+
+
+def test_dag_run_persists_step_updates_to_sqlite_logger(monkeypatch, tmp_path) -> None:
+    events: list[tuple[str, str]] = []
+    closed = {"value": False}
+
+    class FakeSQLiteLogger:
+        def __init__(
+            self,
+            db_path: str,
+            run_name: str,
+            dag_name: str,
+            steps,
+            disabled_edges=None,
+            disabled_steps=None,
+        ) -> None:
+            self.db_path = db_path
+            self.run_name = run_name
+            self.dag_name = dag_name
+            self.steps = steps
+
+        def log_step(self, step_name: str, meta) -> None:
+            events.append((step_name, str(meta.get("status", ""))))
+
+        def close(self) -> None:
+            closed["value"] = True
+
+    monkeypatch.setattr(dag_module, "SQLiteRunLogger", FakeSQLiteLogger)
+
+    dag = Dag()
+
+    @dag.step()
+    def a():
+        return {"id": 1}
+
+    _results, status = dag.run(dag_name="sqlite_live", logs_dir=str(tmp_path))
+    assert status["a"] == "done"
+    assert ("a", "done") in events
+    assert closed["value"] is True
+
+
+def test_dag_run_creates_central_sqlite_automatically(tmp_path) -> None:
+    dag = Dag()
+
+    @dag.step()
+    def a():
+        return {"id": 1}
+
+    _results, status = dag.run(dag_name="sqlite_auto", logs_dir=str(tmp_path))
+    assert status["a"] == "done"
+    sqlite_path = tmp_path / "runs.sqlite"
+    assert sqlite_path.exists()
+
+
+def test_sqlite_logger_handles_row_mode_running_updates_from_worker_thread(tmp_path) -> None:
+    dag = Dag()
+
+    @dag.step()
+    def extract():
+        return [{"id": 1}]
+
+    @dag.step(depends_on=[extract], mode="row")
+    def slow_row(row):
+        time.sleep(0.25)
+        return {"id": row["id"], "v": 10}
+
+    _results, status = dag.run(dag_name="sqlite_threadsafe", logs_dir=str(tmp_path))
+    assert status["extract"] == "done"
+    assert status["slow_row"] == "done"

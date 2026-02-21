@@ -3,12 +3,12 @@ from __future__ import annotations
 from typing import Callable, Iterable, MutableMapping
 from datetime import datetime
 import os
+import threading
 
 from ninout.core.engine.executor import run
-from ninout.core.engine.models import Step, StepResult
-from ninout.core.ui.persist_duckdb import DuckDBRunLogger, persist_run_to_duckdb
-from ninout.core.ui.render import to_html_from_duckdb, to_html_from_yaml
-from ninout.core.ui.serialize import to_yaml
+from ninout.core.engine.models import Step, StepMode, StepResult
+from ninout.core.ui.persist_duckdb import DuckDBRunLogger
+from ninout.core.ui.persist_sqlite import SQLiteRunLogger
 from ninout.core.engine.validate import validate_steps
 
 
@@ -30,6 +30,7 @@ class Dag:
         when: Callable[..., StepResult] | str | None = None,
         condition: bool | None = None,
         is_branch: bool = False,
+        mode: StepMode = "task",
     ):
         def decorator(func: Callable[..., StepResult]) -> Callable[..., StepResult]:
             name = func.__name__
@@ -57,6 +58,7 @@ class Dag:
                 when=when_name,
                 condition=cond_value,
                 is_branch=is_branch,
+                mode=mode,
             )
             return func
 
@@ -65,39 +67,15 @@ class Dag:
     def branch(self, depends_on: Iterable[Callable[..., object] | str] | None = None):
         return self.step(depends_on=depends_on, is_branch=True)
 
-    def to_html(
-        self,
-        dag_name: str = "dag",
-        logs_dir: str = "logs",
-        persist_duckdb: bool = False,
-        duckdb_file_name: str = "run.duckdb",
-    ) -> tuple[str, str]:
-        if self._last_run_dir is not None:
-            run_dir = self._last_run_dir
-            os.makedirs(run_dir, exist_ok=True)
-        else:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            run_dir = os.path.join(logs_dir, f"{dag_name}_{timestamp}")
-            os.makedirs(run_dir, exist_ok=True)
-        yaml_path = os.path.join(run_dir, "dag.yaml")
-        html_path = os.path.join(run_dir, "dag.html")
-        db_path = os.path.join(run_dir, duckdb_file_name)
-        to_yaml(self._steps, path=yaml_path, run_data=self._last_run)
-        try:
-            if not os.path.exists(db_path):
-                persist_run_to_duckdb(
-                    db_path=db_path,
-                    dag_name=dag_name,
-                    steps=self._steps,
-                    run_data=self._last_run or {},
-                )
-            to_html_from_duckdb(db_path=db_path, html_path=html_path)
-        except Exception:  # noqa: BLE001
-            to_html_from_yaml(yaml_path, html_path=html_path)
-        return yaml_path, html_path
+    def to_html(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        raise RuntimeError(
+            "HTML estatico foi removido. Use o dashboard dinamico via FastAPI em /dashboard."
+        )
 
-    def to_yaml(self, path: str = "dag.yaml") -> None:
-        to_yaml(self._steps, path=path, run_data=self._last_run)
+    def to_yaml(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        raise RuntimeError(
+            "YAML estatico foi removido. Os dados de execucao ficam no run.duckdb."
+        )
 
     def run(
         self,
@@ -110,7 +88,7 @@ class Dag:
         disabled_steps: Iterable[Callable[..., object] | str] | None = None,
         dag_name: str = "dag",
         logs_dir: str = "logs",
-        persist_duckdb: bool = False,
+        persist_duckdb: bool = True,
         duckdb_file_name: str = "run.duckdb",
     ) -> tuple[MutableMapping[str, object], MutableMapping[str, str]]:
         all_disabled_edges = set(self._disabled_edges)
@@ -121,21 +99,37 @@ class Dag:
         all_disabled_steps = set(self._disabled_steps)
         for step_ref in disabled_steps or []:
             all_disabled_steps.add(self._ref_name(step_ref))
-        logger = None
-        self._last_run_dir = None
-        if persist_duckdb:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            run_dir = os.path.join(logs_dir, f"{dag_name}_{timestamp}")
-            os.makedirs(run_dir, exist_ok=True)
-            self._last_run_dir = run_dir
-            db_path = os.path.join(run_dir, duckdb_file_name)
-            logger = DuckDBRunLogger(
-                db_path=db_path,
-                dag_name=dag_name,
-                steps=self._steps,
-                disabled_edges=all_disabled_edges,
-                disabled_steps=all_disabled_steps,
+        if not persist_duckdb:
+            raise RuntimeError(
+                "persist_duckdb=False nao e suportado. DuckDB e obrigatorio neste runtime."
             )
+        loggers: list[object] = []
+        self._last_run_dir = None
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        run_dir = os.path.join(logs_dir, f"{dag_name}_{timestamp}")
+        run_name = os.path.basename(run_dir)
+        os.makedirs(run_dir, exist_ok=True)
+        self._last_run_dir = run_dir
+        db_path = os.path.join(run_dir, duckdb_file_name)
+        duckdb_logger = DuckDBRunLogger(
+            db_path=db_path,
+            dag_name=dag_name,
+            steps=self._steps,
+            disabled_edges=all_disabled_edges,
+            disabled_steps=all_disabled_steps,
+        )
+        loggers.append(duckdb_logger)
+        sqlite_path = os.path.join(logs_dir, "runs.sqlite")
+        sqlite_logger = SQLiteRunLogger(
+            db_path=sqlite_path,
+            run_name=run_name,
+            dag_name=dag_name,
+            steps=self._steps,
+            disabled_edges=all_disabled_edges,
+            disabled_steps=all_disabled_steps,
+        )
+        loggers.append(sqlite_logger)
+        logger_lock = threading.Lock()
 
         def _on_step_update(
             step_name: str,
@@ -146,6 +140,8 @@ class Dag:
             input_lines: int,
             output_lines: int,
         ) -> None:
+            throughput_in_lps = 0.0 if duration_s <= 0 else input_lines / duration_s
+            throughput_out_lps = 0.0 if duration_s <= 0 else output_lines / duration_s
             meta = {
                 "status": step_status,
                 "output": step_output,
@@ -153,6 +149,8 @@ class Dag:
                 "result": step_result,
                 "input_lines": input_lines,
                 "output_lines": output_lines,
+                "throughput_in_lps": round(throughput_in_lps, 3),
+                "throughput_out_lps": round(throughput_out_lps, 3),
                 "disabled_deps": sorted(
                     source
                     for source, target in all_disabled_edges
@@ -160,8 +158,9 @@ class Dag:
                 ),
                 "disabled_self": step_name in all_disabled_steps,
             }
-            if logger is not None:
-                logger.log_step(step_name, meta)
+            with logger_lock:
+                for logger in loggers:
+                    logger.log_step(step_name, meta)
         try:
             results, status, outputs, timings, input_lines_map, output_lines_map = run(
                 self._steps,
@@ -179,6 +178,24 @@ class Dag:
                     "result": results.get(name),
                     "input_lines": input_lines_map.get(name, 0),
                     "output_lines": output_lines_map.get(name, 0),
+                    "throughput_in_lps": round(
+                        (
+                            input_lines_map.get(name, 0)
+                            / timings.get(name, 0.0)
+                        )
+                        if timings.get(name, 0.0) > 0
+                        else 0.0,
+                        3,
+                    ),
+                    "throughput_out_lps": round(
+                        (
+                            output_lines_map.get(name, 0)
+                            / timings.get(name, 0.0)
+                        )
+                        if timings.get(name, 0.0) > 0
+                        else 0.0,
+                        3,
+                    ),
                     "disabled_deps": sorted(
                         source for source, target in all_disabled_edges if target == name
                     ),
@@ -188,7 +205,7 @@ class Dag:
             }
             return results, status
         finally:
-            if logger is not None:
+            for logger in loggers:
                 logger.close()
 
     def validate(self) -> None:

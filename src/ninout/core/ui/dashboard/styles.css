@@ -1,0 +1,148 @@
+body {
+  margin: 0;
+  font-family: "IBM Plex Sans", Arial, sans-serif;
+  background: #f3f5f7;
+  color: #1d2430;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  min-height: 100vh;
+}
+
+.runs {
+  border-right: 1px solid #d7dbe0;
+  background: #ffffff;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.runs ul {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.runs li {
+  border: 1px solid #d7dbe0;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
+.runs li:hover {
+  background: #eef4ff;
+}
+
+.details {
+  padding: 16px;
+  overflow: auto;
+}
+
+#graph-wrap {
+  border: 1px solid #d7dbe0;
+  border-radius: 8px;
+  background: #fff;
+  overflow: auto;
+}
+
+#dag-graph {
+  width: 100%;
+  min-height: 240px;
+  display: block;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+}
+
+th,
+td {
+  border-bottom: 1px solid #e5e8ec;
+  text-align: left;
+  padding: 8px;
+}
+
+tr:hover {
+  background: #f6f9ff;
+}
+
+tr.selected {
+  background: #e6f0ff;
+}
+
+pre {
+  background: #fff;
+  border: 1px solid #d7dbe0;
+  border-radius: 8px;
+  padding: 10px;
+  overflow: auto;
+}
+
+#step-rows-meta {
+  background: #fff;
+  border: 1px solid #d7dbe0;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+
+#step-rows-table {
+  table-layout: fixed;
+}
+
+#step-rows-table td,
+#step-rows-table th {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.graph-node {
+  cursor: pointer;
+}
+
+.graph-node rect {
+  fill: #fff;
+  stroke: #4b5563;
+  stroke-width: 1.6;
+}
+
+.graph-node text {
+  font-size: 12px;
+  fill: #1f2937;
+  font-family: "IBM Plex Sans", Arial, sans-serif;
+}
+
+.graph-node.status-done rect {
+  stroke: #1f8a4c;
+}
+
+.graph-node.status-failed rect {
+  stroke: #c0392b;
+}
+
+.graph-node.status-running rect {
+  stroke: #0b63ce;
+}
+
+.graph-node.status-skipped rect {
+  stroke: #7c8795;
+}
+
+.graph-node.status-pending rect {
+  stroke: #6b7280;
+}
+
+.graph-node.disabled rect {
+  fill: #ececec;
+  stroke-dasharray: 4 4;
+}
+
+.graph-node.selected rect {
+  stroke-width: 2.6;
+}

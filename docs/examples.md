@@ -1,17 +1,10 @@
 # Examples
 
-## Example 1: DAG with branch
+## Example 1: branch DAG
 
-Reference file: `transformations/example_dag.py`
+Reference: `transformations/example_dag.py`
 
-Flow:
-1. `extrair` returns base data.
-2. `precisa_transformar` decides the path (`True/False`).
-3. `transformar` runs only when the branch is `True`.
-4. `pular_transformacao` runs only when the branch is `False`.
-5. `carregar` consumes transformed output.
-
-Command:
+Run:
 
 ```bash
 uv run transformations/example_dag.py
@@ -19,38 +12,31 @@ uv run transformations/example_dag.py
 
 ## Example 2: API to JSON
 
-Reference file: `transformations/api_to_json.py`
+Reference: `transformations/api_to_json.py`
 
-Flow:
-1. `fetch_posts`: fetches posts from `jsonplaceholder`.
-2. `transform_posts`: keeps top 10 and normalizes titles.
-3. `save_json`: writes to `posts_output.json`.
-
-Command:
+Run:
 
 ```bash
 uv run transformations/api_to_json.py
 ```
 
-## Minimal example to create a DAG
+## Example 3: hybrid modes
 
-```python
-from ninout import Dag
+Reference: `transformations/hybrid_modes_example.py`
 
-dag = Dag()
+Run:
 
-@dag.step()
-def extract():
-    return "data"
-
-@dag.step(depends_on=[extract])
-def transform(results):
-    return results["extract"].upper()
-
-@dag.step(depends_on=[transform])
-def load(results):
-    print(results["transform"])
-
-dag.run()
-dag.to_html(dag_name="mini")
+```bash
+uv run transformations/hybrid_modes_example.py
 ```
+
+## Inspect executions in dashboard
+
+Start API:
+
+```bash
+uv run uvicorn ninout.core.api.main:app --reload
+```
+
+Open:
+- `http://127.0.0.1:8000/dashboard`

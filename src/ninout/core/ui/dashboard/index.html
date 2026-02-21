@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ninout dashboard</title>
+    <link rel="stylesheet" href="/dashboard/assets/styles.css" />
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="runs">
+        <h1>Runs</h1>
+        <button id="refresh-runs">Refresh</button>
+        <ul id="runs-list"></ul>
+      </aside>
+      <main class="details">
+        <section id="run-summary">
+          <h2>Run details</h2>
+          <pre id="run-meta">Select a run...</pre>
+        </section>
+        <section>
+          <h2>DAG graph</h2>
+          <div id="graph-wrap">
+            <svg id="dag-graph" viewBox="0 0 800 240" preserveAspectRatio="xMinYMin meet"></svg>
+          </div>
+        </section>
+        <section>
+          <h2>Steps</h2>
+          <table id="steps-table">
+            <thead>
+              <tr>
+                <th>Step</th>
+                <th>Status</th>
+                <th>Duration (ms)</th>
+                <th>In</th>
+                <th>Out</th>
+                <th>In lps</th>
+                <th>Out lps</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </section>
+        <section>
+          <h2>Step rows</h2>
+          <div id="step-rows-meta">Select a step...</div>
+          <table id="step-rows-table">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+    <script src="/dashboard/assets/app.js"></script>
+  </body>
+  </html>

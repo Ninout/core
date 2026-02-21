@@ -54,3 +54,11 @@ def test_topological_order_cycle_raises() -> None:
     }
     with pytest.raises(ValueError):
         topological_order(steps)
+
+
+def test_validate_invalid_mode_raises() -> None:
+    steps = {
+        "a": Step(name="a", func=lambda: {}, deps=[], mode="invalid"),  # type: ignore[arg-type]
+    }
+    with pytest.raises(ValueError):
+        validate_steps(steps)

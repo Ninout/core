@@ -10,109 +10,63 @@ from ninout import Dag
 
 ### `Dag.step(...)`
 
-Decorator used to register a step.
+Registers a step.
 
 Parameters:
 - `depends_on`: iterable of functions or step names.
-- `when`: branch name/function used as a condition.
-- `condition`: `True` or `False` to indicate which path should run.
-- `is_branch`: internal usage; prefer `dag.branch(...)`.
+- `when`: branch function/name used as gate.
+- `condition`: expected branch value (`True`/`False`).
+- `mode`: `"task"`, `"row"`, or `"sql"`.
+- `is_branch`: internal use; prefer `dag.branch(...)`.
 
-Default behavior:
-- if `when` is provided and `condition` is omitted, it defaults to `True`.
-
-Important rule:
-- If the step function accepts one parameter, the executor tries to pass `results`.
-- If the function accepts no parameters, it runs without arguments.
-- Non-branch steps must return:
-  - `dict[str, object]`, or
-  - `list[dict[str, object]]`.
-- Branch steps must return `bool`.
+Rules:
+- if `when` is provided and `condition` is omitted, `condition=True`.
+- branch steps must return `bool`.
+- non-branch outputs are normalized for logging/runtime as dict/list-of-dict style payloads.
 
 ### `Dag.branch(depends_on=None)`
 
-Shortcut to create a branch step (`is_branch=True`).
+Shortcut to create branch steps (`is_branch=True`).
 
-Contract:
-- return value must be `bool`;
-- this value is compared with `condition` in conditional steps.
+### `Dag.run(...)`
 
-### `Dag.run(max_workers=None, raise_on_fail=True)`
+Executes the DAG and persists runtime data in DuckDB.
 
-Executes the DAG.
+Main parameters:
+- `max_workers`
+- `raise_on_fail`
+- `disabled_edges`
+- `disabled_steps`
+- `dag_name`
+- `logs_dir`
+- `persist_duckdb` (must be `True`)
+- `duckdb_file_name` (default `run.duckdb`)
 
 Returns:
-- `results`: dict with each step return value.
-- `status`: dict with each step status.
+- `results`: map of step results.
+- `status`: map of step statuses.
 
-Behavior:
-- parallelizes independent steps;
-- marks step as `skipped` if dependency fails/is skipped or branch condition does not match;
-- raises `RuntimeError` on failures when `raise_on_fail=True`.
-- supports disabling specific hops (edges) for the run via `disabled_edges=[("a", "b")]`.
-- supports real-time DuckDB logging during execution via:
-  - `dag.run(dag_name="my_dag", logs_dir="logs", persist_duckdb=True, duckdb_file_name="run.duckdb")`
+Status values:
+- `pending`, `running`, `done`, `failed`, `skipped`.
 
-State transitions:
-- `pending -> running -> done/failed`
-- `pending -> skipped`
+### `Dag.to_html(...)` / `Dag.to_yaml(...)`
 
-### `Dag.to_yaml(path="dag.yaml")`
-
-Serializes structure plus last run metadata to YAML.
-
-### `Dag.to_html(dag_name="dag", logs_dir="logs", persist_duckdb=False, duckdb_file_name="run.duckdb")`
-
-Generates:
-- `<logs_dir>/<dag_name>_<timestamp>/dag.yaml`
-- `<logs_dir>/<dag_name>_<timestamp>/dag.html`
-- optionally `<logs_dir>/<dag_name>_<timestamp>/run.duckdb` when `persist_duckdb=True`
-  (or already created during `run(..., persist_duckdb=True)`)
-
-Returns `(yaml_path, html_path)`.
+Deprecated and removed from runtime behavior.
+Both methods raise `RuntimeError`.
+Use dashboard/API backed by DuckDB.
 
 ### `Dag.validate()`
 
-Runs structural graph validations without executing steps.
+Runs graph validation without executing.
 
-### `Dag.disable_edge(source, target)`
+### `Dag.disable_edge(source, target)` / `Dag.enable_edge(source, target)`
 
-Disables one directed hop (`source -> target`) in the execution plan.
+Disable or re-enable a directed dependency edge.
 
-Behavior:
-- validates that both steps exist;
-- validates that the hop exists in `target.deps`;
-- causes `target` to be skipped, propagating skip downstream.
+### `Dag.disable_step(step)` / `Dag.enable_step(step)`
 
-### `Dag.enable_edge(source, target)`
+Disable or re-enable a full step.
 
-Re-enables a previously disabled hop.
+### `Dag.list_disabled_edges()` / `Dag.list_disabled_steps()`
 
-### `Dag.list_disabled_edges()`
-
-Returns the list of currently disabled hops.
-
-### `Dag.disable_step(step)`
-
-Disables a step entirely for execution.
-
-Behavior:
-- the step is marked as `skipped`;
-- downstream dependents are also skipped by dependency propagation.
-
-### `Dag.enable_step(step)`
-
-Re-enables a previously disabled step.
-
-### `Dag.list_disabled_steps()`
-
-Returns the list of currently disabled steps.
-
-## Step statuses
-
-Values used by the project:
-- `pending`
-- `running`
-- `done`
-- `failed`
-- `skipped`
+Return currently disabled execution elements.

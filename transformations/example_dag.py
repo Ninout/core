@@ -43,6 +43,6 @@ def build_dag() -> Dag:
 
 if __name__ == "__main__":
     dag = build_dag()
-    dag.run()
-    yaml_path, html_path = dag.to_html(dag_name="example_dag")
-    print(f"DAG gerado com {len(dag)} steps em {html_path}")
+    _results, status = dag.run(dag_name="example_dag")
+    print(f"Status: {status}")
+    print(f"Run dir: {dag._last_run_dir}")

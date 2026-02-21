@@ -3,12 +3,14 @@ from __future__ import annotations
 from concurrent.futures import Future
 import threading
 import sys
+import time
 
 import pytest
 
 import ninout.core.engine.executor as executor_module
 from ninout.core.engine.executor import run
 from ninout.core.engine.models import Step
+from ninout.core.engine.planner import ExecutionPlan
 
 
 def test_executor_skips_false_branch_path() -> None:
@@ -165,8 +167,13 @@ def test_executor_handles_done_future_not_in_running_map(monkeypatch) -> None:
 
 
 def test_executor_deadlock_path_raises_runtime_error(monkeypatch) -> None:
-    monkeypatch.setattr(executor_module, "validate_steps", lambda _steps: None)
-    monkeypatch.setattr(executor_module, "topological_order", lambda _steps: ["a"])
+    monkeypatch.setattr(
+        executor_module,
+        "compile_execution_plan",
+        lambda _steps, disabled_edges=None, disabled_steps=None: ExecutionPlan(
+            order=["a"], disabled_edges=set(), disabled_steps=set()
+        ),
+    )
 
     steps = {"a": Step(name="a", func=lambda: {"value": "ok"}, deps=["a"])}
     with pytest.raises(RuntimeError, match="Deadlock"):
@@ -224,3 +231,90 @@ def test_executor_rejects_non_standard_step_output_type() -> None:
     }
     with pytest.raises(RuntimeError):
         run(steps, raise_on_fail=True)
+
+
+def test_executor_row_mode_transforms_row_list() -> None:
+    steps = {
+        "extract": Step(
+            name="extract",
+            func=lambda: [{"id": 1}, {"id": 2}],
+            deps=[],
+        ),
+        "row_transform": Step(
+            name="row_transform",
+            func=lambda rows: [{"id": row["id"], "id2": row["id"] * 2} for row in rows],
+            deps=["extract"],
+            mode="row",
+        ),
+    }
+    results, status, _outputs, _timings, _in_lines, _out_lines = run(steps)
+    assert status["row_transform"] == "done"
+    assert results["row_transform"] == [{"id": 1, "id2": 2}, {"id": 2, "id2": 4}]
+
+
+def test_executor_row_mode_supports_per_row_returns_and_none() -> None:
+    def per_row(row):
+        if row["id"] == 2:
+            return None
+        return {"id": row["id"], "ok": True}
+
+    steps = {
+        "extract": Step(
+            name="extract",
+            func=lambda: [{"id": 1}, {"id": 2}, {"id": 3}],
+            deps=[],
+        ),
+        "row_transform": Step(
+            name="row_transform",
+            func=per_row,
+            deps=["extract"],
+            mode="row",
+        ),
+    }
+    results, status, _outputs, _timings, _in_lines, _out_lines = run(steps)
+    assert status["row_transform"] == "done"
+    assert results["row_transform"] == [{"id": 1, "ok": True}, {"id": 3, "ok": True}]
+
+
+def test_executor_row_mode_emits_running_progress_updates() -> None:
+    updates: list[tuple[str, str, int]] = []
+
+    def on_update(name: str, status: str, _result, _output, _dur, _in_lines, out_lines):
+        updates.append((name, status, out_lines))
+
+    def slow_row(row):
+        time.sleep(0.08)
+        return {"id": row["id"]}
+
+    steps = {
+        "extract": Step(
+            name="extract",
+            func=lambda: [{"id": 1}, {"id": 2}, {"id": 3}, {"id": 4}],
+            deps=[],
+        ),
+        "row_transform": Step(
+            name="row_transform",
+            func=slow_row,
+            deps=["extract"],
+            mode="row",
+        ),
+    }
+    _results, status, _outputs, _timings, _in_lines, _out_lines = run(
+        steps, on_step_update=on_update
+    )
+    assert status["row_transform"] == "done"
+    assert any(name == "row_transform" and st == "running" for name, st, _ in updates)
+
+
+def test_executor_sql_mode_requires_duckdb() -> None:
+    steps = {
+        "sql_step": Step(
+            name="sql_step",
+            func=lambda: "select 1 as id",
+            deps=[],
+            mode="sql",
+        )
+    }
+    results, status, _outputs, _timings, _in_lines, _out_lines = run(steps)
+    assert status["sql_step"] == "done"
+    assert results["sql_step"] == [{"id": 1}]
