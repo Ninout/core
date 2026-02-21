@@ -24,6 +24,10 @@ Default behavior:
 Important rule:
 - If the step function accepts one parameter, the executor tries to pass `results`.
 - If the function accepts no parameters, it runs without arguments.
+- Non-branch steps must return:
+  - `dict[str, object]`, or
+  - `list[dict[str, object]]`.
+- Branch steps must return `bool`.
 
 ### `Dag.branch(depends_on=None)`
 

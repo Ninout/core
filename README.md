@@ -86,4 +86,5 @@ Generated files:
 ## Notes
 
 - If a step accepts a parameter, it receives `results` with all completed outputs.
+- Non-branch step outputs are standardized as `dict` or `list[dict]`.
 - HTML preview explodes JSON at the first level and shows it as a table.

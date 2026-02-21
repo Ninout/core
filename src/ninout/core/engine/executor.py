@@ -104,6 +104,13 @@ def run(
             return max(1, value.count("\n") + 1) if value else 0
         return 1
 
+    def _is_step_payload(value: object) -> bool:
+        if isinstance(value, dict):
+            return all(isinstance(k, str) for k in value)
+        if isinstance(value, list):
+            return all(isinstance(item, dict) for item in value)
+        return False
+
     def _run_step(step: Step) -> tuple[bool, object, str, float, int, int]:
         buffer = io.StringIO()
         thread_local.buffer = buffer
@@ -117,6 +124,13 @@ def run(
                 result = step.func(results)
             except TypeError:
                 result = step.func()
+            if step.is_branch:
+                if not isinstance(result, bool):
+                    raise ValueError(f"Branch {step.name} deve retornar bool, recebeu {result}")
+            elif not _is_step_payload(result):
+                raise TypeError(
+                    f"Step {step.name} deve retornar dict ou list[dict], recebeu {type(result).__name__}"
+                )
             output_lines = _count_lines(result)
             return (
                 True,

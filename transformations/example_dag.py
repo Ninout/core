@@ -16,7 +16,7 @@ def build_dag() -> Dag:
     @dag.step()
     def extrair() -> None:
         print("Extraindo")
-        return "dados brutos"
+        return {"payload": "dados brutos"}
 
     @dag.branch(depends_on=[extrair])
     def precisa_transformar() -> bool:
@@ -26,7 +26,7 @@ def build_dag() -> Dag:
     @dag.step(depends_on=[extrair], when=precisa_transformar, condition=True)
     def transformar(results) -> None:
         print("Transformando")
-        return results["extrair"].upper()
+        return {"payload": str(results["extrair"]["payload"]).upper()}
 
     @dag.step(depends_on=[extrair], when=precisa_transformar, condition=False)
     def pular_transformacao() -> None:
@@ -36,7 +36,7 @@ def build_dag() -> Dag:
     @dag.step(depends_on=[transformar])
     def carregar(results) -> None:
         print("Carregando os dados no banco")
-        print(f"Payload: {results['transformar']}")
+        print(f"Payload: {results['transformar']['payload']}")
 
     return dag
 

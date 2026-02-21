@@ -16,17 +16,17 @@ def build_dag() -> Dag:
     @dag.step()
     def extract():
         print("extract")
-        return "raw-data"
+        return {"value": "raw-data"}
 
     @dag.step(depends_on=[extract])
     def transform(results):
         print("transform")
-        return results["extract"].upper()
+        return {"value": str(results["extract"]["value"]).upper()}
 
     @dag.step(depends_on=[transform])
     def load(results):
-        print(f"load: {results['transform']}")
-        return "ok"
+        print(f"load: {results['transform']['value']}")
+        return {"status": "ok"}
 
     # Disable the hop extract -> transform.
     # Expected behavior:

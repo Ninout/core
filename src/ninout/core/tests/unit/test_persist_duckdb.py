@@ -103,11 +103,11 @@ def test_dag_run_persists_step_updates_to_duckdb_logger(monkeypatch, tmp_path) -
 
     @dag.step()
     def a():
-        return ["x", "y"]
+        return [{"value": "x"}, {"value": "y"}]
 
     @dag.step(depends_on=[a])
     def b(results):
-        return len(results["a"])
+        return {"count": len(results["a"])}
 
     _results, status = dag.run(
         dag_name="live",

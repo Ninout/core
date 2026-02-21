@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Callable, TypeAlias
+
+Row: TypeAlias = dict[str, object]
+StepPayload: TypeAlias = Row | list[Row]
+StepResult: TypeAlias = StepPayload | bool
 
 
 @dataclass
 class Step:
     name: str
-    func: Callable[..., object]
+    func: Callable[..., StepResult]
     deps: list[str] = field(default_factory=list)
     when: str | None = None
     condition: bool | None = None

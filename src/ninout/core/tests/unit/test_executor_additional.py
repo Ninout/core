@@ -15,7 +15,7 @@ def test_executor_skips_false_branch_path() -> None:
     steps = {}
 
     def start():
-        return "seed"
+        return {"value": "seed"}
 
     def decision():
         return False
@@ -24,7 +24,7 @@ def test_executor_skips_false_branch_path() -> None:
         return results["start"]
 
     def on_false():
-        return "fallback"
+        return {"value": "fallback"}
 
     steps["start"] = Step(name="start", func=start, deps=[])
     steps["decision"] = Step(name="decision", func=decision, deps=["start"], is_branch=True)
@@ -46,12 +46,12 @@ def test_executor_skips_false_branch_path() -> None:
     results, status, _outputs, _timings, _in_lines, _out_lines = run(steps)
     assert status["on_true"] == "skipped"
     assert status["on_false"] == "done"
-    assert results["on_false"] == "fallback"
+    assert results["on_false"] == {"value": "fallback"}
 
 
 def test_executor_returns_failed_when_raise_on_fail_false() -> None:
     steps = {
-        "a": Step(name="a", func=lambda: 1, deps=[]),
+        "a": Step(name="a", func=lambda: {"value": 1}, deps=[]),
         "boom": Step(name="boom", func=lambda: 1 / 0, deps=["a"]),
     }
     _results, status, _outputs, _timings, _in_lines, _out_lines = run(
@@ -63,7 +63,7 @@ def test_executor_returns_failed_when_raise_on_fail_false() -> None:
 
 def test_executor_raises_when_raise_on_fail_true() -> None:
     steps = {
-        "a": Step(name="a", func=lambda: 1, deps=[]),
+        "a": Step(name="a", func=lambda: {"value": 1}, deps=[]),
         "boom": Step(name="boom", func=lambda: 1 / 0, deps=["a"]),
     }
     with pytest.raises(RuntimeError):
@@ -74,13 +74,13 @@ def test_executor_branch_must_return_bool() -> None:
     steps = {}
 
     def start():
-        return "x"
+        return {"value": "x"}
 
     def bad_branch():
         return "yes"
 
     def conditional():
-        return "nope"
+        return {"value": "nope"}
 
     steps["start"] = Step(name="start", func=start, deps=[])
     steps["bad_branch"] = Step(
@@ -94,7 +94,7 @@ def test_executor_branch_must_return_bool() -> None:
         condition=True,
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(RuntimeError):
         run(steps)
 
 
@@ -104,7 +104,7 @@ def test_executor_supports_steps_without_results_arg_and_counts_stdout_lines() -
     def no_args_step():
         print("line-1")
         print("line-2")
-        return None
+        return {}
 
     steps["no_args"] = Step(name="no_args", func=no_args_step, deps=[])
     _results, status, outputs, _timings, in_lines, out_lines = run(steps)
@@ -117,7 +117,7 @@ def test_executor_supports_steps_without_results_arg_and_counts_stdout_lines() -
 def test_executor_skips_dependents_when_parent_fails() -> None:
     steps = {
         "fail": Step(name="fail", func=lambda: (_ for _ in ()).throw(ValueError("x")), deps=[]),
-        "downstream": Step(name="downstream", func=lambda: 1, deps=["fail"]),
+        "downstream": Step(name="downstream", func=lambda: {"value": 1}, deps=["fail"]),
     }
     _results, status, _outputs, _timings, _in_lines, _out_lines = run(
         steps, raise_on_fail=False
@@ -140,7 +140,7 @@ def test_executor_threadlocal_io_none_and_buffer_flush_paths() -> None:
 
         print("inside-buffer")
         sys.stdout.flush()
-        return "ok"
+        return {"value": "ok"}
 
     steps["io"] = Step(name="io", func=io_step, deps=[])
     _results, status, outputs, _timings, _in_lines, _out_lines = run(steps)
@@ -158,26 +158,26 @@ def test_executor_handles_done_future_not_in_running_map(monkeypatch) -> None:
         return done | {ghost}, not_done
 
     monkeypatch.setattr(executor_module, "wait", patched_wait)
-    steps = {"a": Step(name="a", func=lambda: "ok", deps=[])}
+    steps = {"a": Step(name="a", func=lambda: {"value": "ok"}, deps=[])}
     results, status, _outputs, _timings, _in_lines, _out_lines = run(steps)
     assert status["a"] == "done"
-    assert results["a"] == "ok"
+    assert results["a"] == {"value": "ok"}
 
 
 def test_executor_deadlock_path_raises_runtime_error(monkeypatch) -> None:
     monkeypatch.setattr(executor_module, "validate_steps", lambda _steps: None)
     monkeypatch.setattr(executor_module, "topological_order", lambda _steps: ["a"])
 
-    steps = {"a": Step(name="a", func=lambda: "ok", deps=["a"])}
+    steps = {"a": Step(name="a", func=lambda: {"value": "ok"}, deps=["a"])}
     with pytest.raises(RuntimeError, match="Deadlock"):
         run(steps)
 
 
 def test_executor_skips_target_when_hop_is_disabled() -> None:
     steps = {
-        "a": Step(name="a", func=lambda: "a", deps=[]),
-        "b": Step(name="b", func=lambda: "b", deps=["a"]),
-        "c": Step(name="c", func=lambda: "c", deps=["b"]),
+        "a": Step(name="a", func=lambda: {"value": "a"}, deps=[]),
+        "b": Step(name="b", func=lambda: {"value": "b"}, deps=["a"]),
+        "c": Step(name="c", func=lambda: {"value": "c"}, deps=["b"]),
     }
     _results, status, _outputs, _timings, _in_lines, _out_lines = run(
         steps, raise_on_fail=False, disabled_edges={("a", "b")}
@@ -189,8 +189,8 @@ def test_executor_skips_target_when_hop_is_disabled() -> None:
 
 def test_executor_rejects_invalid_disabled_hop() -> None:
     steps = {
-        "a": Step(name="a", func=lambda: "a", deps=[]),
-        "b": Step(name="b", func=lambda: "b", deps=["a"]),
+        "a": Step(name="a", func=lambda: {"value": "a"}, deps=[]),
+        "b": Step(name="b", func=lambda: {"value": "b"}, deps=["a"]),
     }
     with pytest.raises(ValueError):
         run(steps, disabled_edges={("a", "missing")})
@@ -198,9 +198,9 @@ def test_executor_rejects_invalid_disabled_hop() -> None:
 
 def test_executor_skips_step_when_disabled_steps_is_set() -> None:
     steps = {
-        "a": Step(name="a", func=lambda: "a", deps=[]),
-        "b": Step(name="b", func=lambda: "b", deps=["a"]),
-        "c": Step(name="c", func=lambda: "c", deps=["b"]),
+        "a": Step(name="a", func=lambda: {"value": "a"}, deps=[]),
+        "b": Step(name="b", func=lambda: {"value": "b"}, deps=["a"]),
+        "c": Step(name="c", func=lambda: {"value": "c"}, deps=["b"]),
     }
     _results, status, _outputs, _timings, _in_lines, _out_lines = run(
         steps, raise_on_fail=False, disabled_steps={"b"}
@@ -212,7 +212,15 @@ def test_executor_skips_step_when_disabled_steps_is_set() -> None:
 
 def test_executor_rejects_invalid_disabled_step() -> None:
     steps = {
-        "a": Step(name="a", func=lambda: "a", deps=[]),
+        "a": Step(name="a", func=lambda: {"value": "a"}, deps=[]),
     }
     with pytest.raises(ValueError):
         run(steps, disabled_steps={"missing"})
+
+
+def test_executor_rejects_non_standard_step_output_type() -> None:
+    steps = {
+        "a": Step(name="a", func=lambda: "not-allowed", deps=[]),
+    }
+    with pytest.raises(RuntimeError):
+        run(steps, raise_on_fail=True)

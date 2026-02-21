@@ -5,7 +5,7 @@ from datetime import datetime
 import os
 
 from ninout.core.engine.executor import run
-from ninout.core.engine.models import Step
+from ninout.core.engine.models import Step, StepResult
 from ninout.core.ui.persist_duckdb import DuckDBRunLogger, persist_run_to_duckdb
 from ninout.core.ui.render import to_html_from_duckdb, to_html_from_yaml
 from ninout.core.ui.serialize import to_yaml
@@ -27,11 +27,11 @@ class Dag:
     def step(
         self,
         depends_on: Iterable[Callable[..., object] | str] | None = None,
-        when: Callable[..., object] | str | None = None,
+        when: Callable[..., StepResult] | str | None = None,
         condition: bool | None = None,
         is_branch: bool = False,
     ):
-        def decorator(func: Callable[..., object]) -> Callable[..., object]:
+        def decorator(func: Callable[..., StepResult]) -> Callable[..., StepResult]:
             name = func.__name__
             deps = []
             for dep in depends_on or []:
